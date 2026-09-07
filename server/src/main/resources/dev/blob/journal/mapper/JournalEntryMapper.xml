@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev.blob.journal.mapper.JournalEntryMapper">
+
+    <resultMap id="JournalEntryResultMap" type="dev.blob.journal.entity.JournalEntryEntity">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="contentMd" column="content_md"/>
+        <result property="entryType" column="entry_type"/>
+        <result property="entryDate" column="entry_date"/>
+        <result property="aiSummary" column="ai_summary"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="JournalSearchFromAndWhere">
+        FROM journal_entry je
+        <if test="query.tagId != null">
+            INNER JOIN journal_entry_tag jet
+                ON jet.journal_entry_id = je.id
+                AND jet.tag_id = #{query.tagId}
+        </if>
+        <where>
+            <if test="query.keyword != null">
+                AND (
+                    je.title LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR je.content_md LIKE CONCAT('%', #{query.keyword}, '%')
+                )
+            </if>
+            <if test="query.entryType != null">
+                AND je.entry_type = #{query.entryType}
+            </if>
+            <if test="query.startDate != null">
+                AND je.entry_date &gt;= #{query.startDate}
+            </if>
+            <if test="query.endDate != null">
+                AND je.entry_date &lt;= #{query.endDate}
+            </if>
+        </where>
+    </sql>
+
+    <select id="search" resultMap="JournalEntryResultMap">
+        SELECT
+            je.id,
+            je.title,
+            je.content_md,
+            je.entry_type,
+            je.entry_date,
+            je.ai_summary,
+            je.created_at,
+            je.updated_at
+        <include refid="JournalSearchFromAndWhere"/>
+        ORDER BY je.entry_date DESC, je.id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(*)
+        <include refid="JournalSearchFromAndWhere"/>
+    </select>
+</mapper>

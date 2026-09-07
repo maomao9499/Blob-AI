@@ -1,0 +1,45 @@
+CREATE TABLE journal_entry (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(200) NOT NULL,
+  content_md MEDIUMTEXT NOT NULL,
+  entry_type VARCHAR(20) NOT NULL,
+  entry_date DATE NOT NULL,
+  ai_summary VARCHAR(1000) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_journal_timeline (entry_date DESC, id DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE tag (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50) NOT NULL,
+  color VARCHAR(20) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_tag_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE journal_entry_tag (
+  journal_entry_id BIGINT NOT NULL,
+  tag_id BIGINT NOT NULL,
+  PRIMARY KEY (journal_entry_id, tag_id),
+  CONSTRAINT fk_jet_journal FOREIGN KEY (journal_entry_id)
+    REFERENCES journal_entry(id) ON DELETE CASCADE,
+  CONSTRAINT fk_jet_tag FOREIGN KEY (tag_id)
+    REFERENCES tag(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE media_asset (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  original_name VARCHAR(255) NOT NULL,
+  stored_name VARCHAR(100) NOT NULL,
+  storage_path VARCHAR(500) NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_size BIGINT NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_media_stored_name (stored_name),
+  INDEX idx_media_sha256 (sha256)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

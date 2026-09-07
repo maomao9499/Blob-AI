@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${BLOB_TEST_DB_URL:jdbc:mysql://127.0.0.1:3306/blob_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${BLOB_TEST_DB_USERNAME:root}
+    password: ${BLOB_TEST_DB_PASSWORD:}
+  flyway:
+    clean-disabled: true
+
+blob:
+  upload-dir: ${java.io.tmpdir}/blob-test-images
