@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+.superpowers/
+**/target/
+**/node_modules/
+**/dist/
+**/out/
+blob-desktop/resources/
+storage/images/*
+!storage/images/.gitkeep
+*.log
+.env
+.env.*.local
+application-local.yml
+.vscode/
+docs
