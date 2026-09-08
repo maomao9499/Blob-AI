@@ -6,6 +6,11 @@
 **/node_modules/
 **/dist/
 **/tests/
+!client/tests/
+client/tests/*
+!client/tests/KnowledgeEdit.test.ts
+!client/tests/KnowledgeManagement.test.ts
+!client/tests/KnowledgeQueries.test.ts
 **/dist-electron/
 *.tsbuildinfo
 **/out/

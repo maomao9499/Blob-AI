@@ -11,6 +11,8 @@ const execute = promisify(execFile);
 const client = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const password = process.env.BLOB_SMOKE_DB_PASSWORD;
 if (!password) throw new Error('Set BLOB_SMOKE_DB_PASSWORD in the calling environment before packaged smoke.');
+const testDbUrl = process.env.BLOB_SMOKE_DB_URL ?? 'jdbc:mysql://127.0.0.1:3306/blob_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai';
+if (!/^jdbc:mysql:\/\/127\.0\.0\.1:\d+\/blob_test(?:\?|$)/.test(testDbUrl)) throw new Error('Packaged smoke must use loopback blob_test.');
 const { BLOB_SMOKE_DB_PASSWORD: _password, ...launchEnvironment } = process.env;
 const temporary = await mkdtemp(join(tmpdir(), 'blob-package-smoke-'));
 const mount = join(temporary, 'volume');
@@ -24,6 +26,8 @@ let application;
 let page;
 let javaPid;
 let journalId;
+const knowledgeIds = [];
+let relationId;
 let imageUrl;
 let failed = false;
 let stage = 'DMG installation';
@@ -58,12 +62,12 @@ async function recordJavaPid() {
   assert.ok(javaPid, 'A tracked packaged Java child must exist');
 }
 
-async function currentApi(path, method = 'GET') {
-  return page.evaluate(async ({ path, method }) => {
+async function currentApi(path, method = 'GET', body) {
+  return page.evaluate(async ({ path, method, body }) => {
     const connection = await window.blobDesktop.getBootstrap();
-    const response = await fetch(`${connection.apiBaseUrl}${path}`, { method, headers: { 'X-Blob-Desktop-Token': connection.sessionToken } });
+    const response = await fetch(`${connection.apiBaseUrl}${path}`, { method, headers: { 'X-Blob-Desktop-Token': connection.sessionToken, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     return { status: response.status, body: response.status === 204 ? null : await response.json() };
-  }, { path, method });
+  }, { path, method, body });
 }
 
 async function quit() {
@@ -87,7 +91,7 @@ try {
   stage = 'first-run settings';
   await expect(page.getByRole('heading', { name: '本地服务配置' })).toBeVisible();
   assert.match(page.url(), /^blob-app:\/\/app\//);
-  await page.getByLabel('MySQL 连接地址', { exact: true }).fill('jdbc:mysql://127.0.0.1:3306/blob_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai');
+  await page.getByLabel('MySQL 连接地址', { exact: true }).fill(testDbUrl);
   await page.getByLabel('MySQL 用户名', { exact: true }).fill('root');
   await page.getByLabel('MySQL 密码', { exact: true }).fill(password);
   await page.getByRole('button', { name: '保存并启动后端', exact: true }).click();
@@ -131,6 +135,29 @@ try {
   assert.ok((await currentApi(`/journals/${journalId}`)).body.data.contentMd.includes(imageUrl));
   await page.screenshot({ path: join(screenshotDirectory, 'packaged-journal.png'), fullPage: true });
   console.log('PASS journal and PNG created through UI, persisted Markdown uses relative media URL, image decoded');
+  stage = 'knowledge promotion and relation';
+  await page.getByRole('link', { name: '整理为知识', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: '标题', exact: true })).toHaveValue(title);
+  await page.getByRole('textbox', { name: '标题', exact: true }).fill(`${title} 知识`);
+  const promoting = page.waitForResponse(response => response.url().endsWith(`/journals/${journalId}/promote-to-knowledge`) && response.request().method() === 'POST');
+  await page.getByRole('button', { name: '保存知识', exact: true }).click();
+  const promoted = await (await promoting).json();
+  assert.equal(promoted.code, 'OK');
+  knowledgeIds.push(promoted.data.id);
+  await expect(page.getByRole('heading', { name: `${title} 知识`, exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('.knowledge-detail img').first().evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  const related = await currentApi('/knowledge', 'POST', { title: `${title} 相关知识`, contentMd: '独立知识正文', summary: '用户手写摘要', categoryId: null, tagIds: [] });
+  assert.equal(related.body.code, 'OK');
+  knowledgeIds.push(related.body.data.id);
+  const relation = await currentApi('/knowledge/relations', 'POST', { sourceKnowledgeId: knowledgeIds[0], targetKnowledgeId: knowledgeIds[1], relationType: 'RELATED' });
+  assert.equal(relation.body.code, 'OK');
+  relationId = relation.body.data.id;
+  const knowledge = (await currentApi(`/knowledge/${knowledgeIds[0]}`)).body.data;
+  assert.equal(knowledge.sourceJournalId, journalId);
+  assert.equal(knowledge.sourceJournalTitle, title);
+  assert.ok(knowledge.contentMd.includes(imageUrl));
+  await page.screenshot({ path: join(screenshotDirectory, 'packaged-knowledge.png'), fullPage: true });
+  console.log('PASS M2 UI promotion retains source and original image URL; independent knowledge and RELATED created');
   await quit();
   console.log('PASS first quit reaped tracked Java child');
 
@@ -138,6 +165,15 @@ try {
   stage = 'relaunch readiness';
   await expect.poll(async () => page.evaluate(async () => (await window.blobDesktop.getBootstrap()).setupRequired), { timeout: 40000 }).toBe(false);
   await recordJavaPid();
+  stage = 'relaunch knowledge and relation';
+  await page.evaluate(id => { window.location.hash = `/knowledge/${id}`; }, knowledgeIds[0]);
+  await expect(page.getByRole('heading', { name: `${title} 知识`, exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: `${title} 相关知识`, exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('.knowledge-detail img').first().evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  const restored = (await currentApi(`/knowledge/${knowledgeIds[0]}`)).body.data;
+  assert.equal(restored.sourceJournalId, journalId);
+  assert.equal((await currentApi(`/knowledge/${knowledgeIds[1]}/relations`)).body.data.items[0].knowledgeId, knowledgeIds[0]);
+  console.log('PASS M2 relaunch restored knowledge, source snapshot, bidirectional relation and decoded image');
   await page.evaluate(id => { window.location.hash = `/journals/${id}`; }, journalId);
   await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
   stage = 'relaunch image decoding';
@@ -147,6 +183,14 @@ try {
   await expect(page).toHaveURL(/#\/$/);
   assert.equal((await currentApi(`/journals/${journalId}`)).status, 404);
   journalId = undefined;
+  await page.evaluate(id => { window.location.hash = `/knowledge/${id}`; }, knowledgeIds[0]);
+  await expect(page.getByText('来源日志已删除', { exact: false })).toBeVisible();
+  await expect.poll(() => page.locator('.knowledge-detail img').first().evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  await page.screenshot({ path: join(screenshotDirectory, 'packaged-knowledge-relaunch.png'), fullPage: true });
+  assert.equal((await currentApi(`/knowledge/relations/${relationId}`, 'DELETE')).body.code, 'OK');
+  relationId = undefined;
+  for (const id of knowledgeIds) assert.equal((await currentApi(`/knowledge/${id}`, 'DELETE')).body.code, 'OK');
+  knowledgeIds.length = 0;
   await quit();
   console.log('PASS relaunch restored encrypted settings, MySQL journal and local image; UI deletion and second child cleanup verified');
 } catch (error) {
@@ -162,6 +206,10 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  if (page && !page.isClosed()) {
+    if (relationId) await currentApi(`/knowledge/relations/${relationId}`, 'DELETE').catch(() => undefined);
+    for (const id of knowledgeIds) await currentApi(`/knowledge/${id}`, 'DELETE').catch(() => undefined);
+  }
   if (journalId && page && !page.isClosed()) await currentApi(`/journals/${journalId}`, 'DELETE').catch(() => undefined);
   await quit().catch(() => { console.error('Java cleanup could not be verified'); process.exitCode = 1; });
   if (mounted) {

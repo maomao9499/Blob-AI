@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev.blob.search.mapper.UnifiedSearchMapper">
+    <resultMap id="SearchRow" type="dev.blob.search.dto.UnifiedSearchRow">
+        <constructor>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_id" javaType="java.lang.Long"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="content_md" javaType="java.lang.String"/>
+            <arg column="updated_at" javaType="java.time.LocalDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="JournalFilter">
+        FROM journal_entry j
+        <where>
+            <if test="query.keyword != null">
+                AND (j.title LIKE #{query.likePattern} ESCAPE '!'
+                    OR j.content_md LIKE #{query.likePattern} ESCAPE '!'
+                    OR EXISTS (SELECT 1 FROM journal_entry_tag jt JOIN tag t ON t.id = jt.tag_id
+                        WHERE jt.journal_entry_id = j.id AND t.name LIKE #{query.likePattern} ESCAPE '!'))
+            </if>
+            <if test="query.tagId != null">
+                AND EXISTS (SELECT 1 FROM journal_entry_tag filter_tag
+                    WHERE filter_tag.journal_entry_id = j.id AND filter_tag.tag_id = #{query.tagId})
+            </if>
+        </where>
+    </sql>
+
+    <sql id="KnowledgeFilter">
+        FROM knowledge_item k
+        <where>
+            <if test="query.keyword != null">
+                AND (k.title LIKE #{query.likePattern} ESCAPE '!'
+                    OR k.content_md LIKE #{query.likePattern} ESCAPE '!'
+                    OR EXISTS (SELECT 1 FROM knowledge_item_tag kt JOIN tag t ON t.id = kt.tag_id
+                        WHERE kt.knowledge_item_id = k.id AND t.name LIKE #{query.likePattern} ESCAPE '!'))
+            </if>
+            <if test="query.tagId != null">
+                AND EXISTS (SELECT 1 FROM knowledge_item_tag filter_tag
+                    WHERE filter_tag.knowledge_item_id = k.id AND filter_tag.tag_id = #{query.tagId})
+            </if>
+        </where>
+    </sql>
+
+    <sql id="SearchUnion">
+        <if test="query.sourceType == 'ALL' or query.sourceType == 'JOURNAL'">
+            SELECT 'JOURNAL' AS source_type, j.id AS source_id, j.title, j.content_md, j.updated_at
+            <include refid="JournalFilter"/>
+        </if>
+        <if test="query.sourceType == 'ALL'">UNION ALL</if>
+        <if test="query.sourceType == 'ALL' or query.sourceType == 'KNOWLEDGE'">
+            SELECT 'KNOWLEDGE' AS source_type, k.id AS source_id, k.title, k.content_md, k.updated_at
+            <include refid="KnowledgeFilter"/>
+        </if>
+    </sql>
+
+    <select id="countSearch" resultType="long">
+        SELECT COUNT(*) FROM (<include refid="SearchUnion"/>) results
+    </select>
+
+    <select id="search" resultMap="SearchRow">
+        SELECT source_type, source_id, title, content_md, updated_at
+        FROM (<include refid="SearchUnion"/>) results
+        ORDER BY updated_at DESC, source_type ASC, source_id DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+</mapper>

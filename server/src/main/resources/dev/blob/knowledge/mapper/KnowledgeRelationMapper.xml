@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev.blob.knowledge.mapper.KnowledgeRelationMapper">
+    <select id="findRelations" resultType="dev.blob.knowledge.dto.KnowledgeRelationResponse">
+        SELECT r.id, k.id AS knowledgeId, k.title FROM knowledge_relation r
+        INNER JOIN knowledge_item k ON k.id = CASE WHEN r.source_knowledge_id=#{id}
+            THEN r.target_knowledge_id ELSE r.source_knowledge_id END
+        WHERE r.source_knowledge_id=#{id} OR r.target_knowledge_id=#{id}
+        ORDER BY r.created_at DESC, r.id DESC LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+</mapper>

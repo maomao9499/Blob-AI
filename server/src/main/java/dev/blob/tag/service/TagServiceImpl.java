@@ -9,6 +9,9 @@ import dev.blob.tag.dto.TagCreateRequest;
 import dev.blob.tag.dto.TagResponse;
 import dev.blob.tag.dto.TagUpdateRequest;
 import dev.blob.tag.entity.JournalEntryTagEntity;
+import dev.blob.tag.entity.KnowledgeItemTagEntity;
+import dev.blob.tag.mapper.KnowledgeItemTagMapper;
+import org.springframework.dao.DataIntegrityViolationException;
 import dev.blob.tag.entity.TagEntity;
 import dev.blob.tag.mapper.JournalEntryTagMapper;
 import dev.blob.tag.mapper.TagMapper;
@@ -35,12 +38,14 @@ public class TagServiceImpl implements TagService {
     private final TagMapper tagMapper;
     private final JournalEntryTagMapper journalEntryTagMapper;
     private final JournalCacheRepository cacheRepository;
+    private final KnowledgeItemTagMapper knowledgeItemTagMapper;
 
     public TagServiceImpl(TagMapper tagMapper, JournalEntryTagMapper journalEntryTagMapper,
-                          JournalCacheRepository cacheRepository) {
+                          JournalCacheRepository cacheRepository, KnowledgeItemTagMapper knowledgeItemTagMapper) {
         this.tagMapper = tagMapper;
         this.journalEntryTagMapper = journalEntryTagMapper;
         this.cacheRepository = cacheRepository;
+        this.knowledgeItemTagMapper = knowledgeItemTagMapper;
     }
 
     @Override
@@ -99,10 +104,17 @@ public class TagServiceImpl implements TagService {
         long associationCount = journalEntryTagMapper.selectCount(
                 Wrappers.<JournalEntryTagEntity>query().eq("tag_id", id)
         );
-        if (associationCount > 0) {
-            throw conflict("标签仍被日志使用，无法删除");
+        long knowledgeCount = knowledgeItemTagMapper.selectCount(
+                Wrappers.<KnowledgeItemTagEntity>query().eq("tag_id", id));
+        if (associationCount > 0 || knowledgeCount > 0) {
+            throw conflict("标签仍被日志或知识使用，无法删除");
         }
-        tagMapper.deleteById(id);
+        try {
+            tagMapper.deleteById(id);
+        } catch (DataIntegrityViolationException exception) {
+            // A reference may be committed after the preflight count; the foreign key is authoritative.
+            throw conflict("标签仍被日志或知识使用，无法删除");
+        }
     }
 
     @Override
@@ -167,6 +179,79 @@ public class TagServiceImpl implements TagService {
             TagResponse tag = tagsById.get(association.getTagId());
             if (tag != null) {
                 result.get(association.getJournalEntryId()).add(tag);
+            }
+        });
+        result.replaceAll((ignored, tags) -> tags.stream()
+                .sorted(Comparator.comparing(TagResponse::name))
+                .toList());
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public void replaceKnowledgeTags(long knowledgeId, List<Long> tagIds) {
+        if (tagIds != null && tagIds.stream().anyMatch(id -> id == null || id < 1)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST, "标签 ID 无效");
+        }
+        Set<Long> distinctTagIds = tagIds == null
+                ? Set.of()
+                : tagIds.stream()
+                        .filter(id -> id != null && id > 0)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (!distinctTagIds.isEmpty()) {
+            long existingCount = tagMapper.selectCount(
+                    Wrappers.<TagEntity>query().in("id", distinctTagIds)
+            );
+            if (existingCount != distinctTagIds.size()) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, HttpStatus.NOT_FOUND, "存在无效标签");
+            }
+        }
+
+        knowledgeItemTagMapper.delete(
+                Wrappers.<KnowledgeItemTagEntity>query()
+                        .eq("knowledge_item_id", knowledgeId)
+        );
+        if (!distinctTagIds.isEmpty()) {
+            List<KnowledgeItemTagEntity> associations = distinctTagIds.stream()
+                    .map(tagId -> new KnowledgeItemTagEntity(knowledgeId, tagId))
+                    .toList();
+            knowledgeItemTagMapper.insert(associations);
+        }
+    }
+
+    @Override
+    public Map<Long, List<TagResponse>> findByKnowledgeIds(Collection<Long> knowledgeIds) {
+        if (knowledgeIds == null || knowledgeIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> distinctKnowledgeIds = new LinkedHashSet<>(knowledgeIds);
+        List<KnowledgeItemTagEntity> associations = knowledgeItemTagMapper.selectList(
+                Wrappers.<KnowledgeItemTagEntity>query()
+                        .in("knowledge_item_id", distinctKnowledgeIds)
+        );
+        if (associations.isEmpty()) {
+            return distinctKnowledgeIds.stream().collect(Collectors.toMap(
+                    Function.identity(),
+                    ignored -> List.of(),
+                    (left, right) -> left,
+                    LinkedHashMap::new
+            ));
+        }
+
+        Set<Long> tagIds = associations.stream()
+                .map(KnowledgeItemTagEntity::getTagId)
+                .collect(Collectors.toSet());
+        Map<Long, TagResponse> tagsById = tagMapper.selectBatchIds(tagIds).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toMap(TagResponse::id, Function.identity()));
+
+        Map<Long, List<TagResponse>> result = new LinkedHashMap<>();
+        distinctKnowledgeIds.forEach(id -> result.put(id, new ArrayList<>()));
+        associations.forEach(association -> {
+            TagResponse tag = tagsById.get(association.getTagId());
+            if (tag != null) {
+                result.get(association.getKnowledgeItemId()).add(tag);
             }
         });
         result.replaceAll((ignored, tags) -> tags.stream()

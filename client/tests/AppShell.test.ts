@@ -21,7 +21,7 @@ describe('AppShell', () => {
     expect(wrapper.text()).toContain('Blob');
     expect(wrapper.text()).toContain('日志');
     expect(wrapper.text()).toContain('标签');
-    expect(wrapper.text()).toContain('成长');
+    expect(wrapper.text()).toContain('写日志');
     expect(wrapper.text()).toContain('设置');
   });
 });

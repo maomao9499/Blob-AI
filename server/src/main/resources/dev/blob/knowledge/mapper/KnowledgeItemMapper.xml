@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dev.blob.knowledge.mapper.KnowledgeItemMapper">
+    <sql id="SearchWhere">
+        FROM knowledge_item k
+        <where>
+            <if test="query.keyword != null">
+                AND (k.title LIKE #{query.keywordPattern} ESCAPE '!'
+                    OR k.content_md LIKE #{query.keywordPattern} ESCAPE '!'
+                    OR EXISTS (SELECT 1 FROM knowledge_item_tag kt INNER JOIN tag t ON t.id=kt.tag_id
+                        WHERE kt.knowledge_item_id=k.id AND t.name LIKE #{query.keywordPattern} ESCAPE '!'))
+            </if>
+            <if test="query.categoryId != null">AND k.category_id=#{query.categoryId}</if>
+            <if test="query.uncategorized">AND k.category_id IS NULL</if>
+            <if test="query.tagId != null">
+                AND EXISTS (SELECT 1 FROM knowledge_item_tag kt WHERE kt.knowledge_item_id=k.id AND kt.tag_id=#{query.tagId})
+            </if>
+        </where>
+    </sql>
+    <select id="countSearch" resultType="long">SELECT COUNT(*) <include refid="SearchWhere"/></select>
+    <select id="search" resultType="dev.blob.knowledge.entity.KnowledgeItemEntity">
+        SELECT k.* <include refid="SearchWhere"/>
+        ORDER BY k.updated_at DESC, k.id DESC LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+</mapper>

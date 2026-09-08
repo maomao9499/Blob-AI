@@ -46,6 +46,8 @@ interface NavigationItem {
 const navigationItems: readonly NavigationItem[] = [
   { label: '日志', path: '/', isDisabled: false },
   { label: '写日志', path: '/journals/new', isDisabled: false },
+  { label: '知识库', path: '/knowledge', isDisabled: false },
+  { label: '搜索', path: '/search', isDisabled: false },
   { label: '标签', path: '/tags', isDisabled: false },
   { label: '设置', path: '/settings', isDisabled: false },
 ];

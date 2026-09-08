@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "start": "npm run build:electron && electron . --blob-dev",
+    "start": "node scripts/start-desktop.mjs",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "vue-tsc -b && vite build",
     "typecheck": "vue-tsc -b",

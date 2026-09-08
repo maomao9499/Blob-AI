@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { ElButton, ElCard, ElTag } from 'element-plus';
+import { createPinia } from 'pinia';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { systemApi } from '@/api/system';
@@ -17,7 +18,7 @@ describe('SettingsView', () => {
     });
 
     const wrapper = mount(SettingsView, {
-      global: { components: { ElButton, ElCard, ElTag } },
+      global: { plugins: [createPinia()], components: { ElButton, ElCard, ElTag } },
     });
     await flushPromises();
 

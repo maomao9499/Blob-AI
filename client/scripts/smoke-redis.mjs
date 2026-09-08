@@ -36,9 +36,16 @@ try {
   await call(`/journals/${id}`, 'PUT', input);
   assert.equal((await call(`/journals/${id}`)).contentMd, input.contentMd);
   const client = fileURLToPath(new URL('..', import.meta.url));
-  const result = await execute('npm', ['run', 'e2e'], { cwd: client, env: { ...process.env, BLOB_E2E_API_TARGET: 'http://127.0.0.1:18081', BLOB_E2E_CHANNEL: 'chrome' }, timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
-  assert.match(result.stdout, /2 passed/);
-  console.log('PASS Redis DOWN: MySQL update/read plus both real-browser CRUD, search, tags, image and unsaved-change tests');
+  const result = await execute('npm', ['run', '--silent', 'e2e', '--', '--reporter=json'], { cwd: client, env: { ...process.env, BLOB_E2E_API_TARGET: 'http://127.0.0.1:18081', BLOB_E2E_CHANNEL: 'chrome' }, timeout: 300000, maxBuffer: 4 * 1024 * 1024 });
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.stats.unexpected, 0);
+  assert.equal(report.stats.flaky, 0);
+  assert.equal(report.stats.skipped, 0);
+  assert.ok(report.stats.expected >= 5, 'All M1 and M2 core browser flows must run');
+  for (const milestone of ['m1-journal.spec.ts', 'm2-knowledge.spec.ts', 'm2-management.spec.ts']) {
+    assert.ok(report.suites.some(suite => suite.file.endsWith(milestone)), `Missing ${milestone}`);
+  }
+  console.log(`PASS Redis DOWN: ${report.stats.expected} real-browser M1/M2 tests covering knowledge, promotion, relations, search, tags and images`);
   await execute('brew', ['services', 'start', 'redis']);
   await waitRedis('UP');
   assert.equal((await call(`/journals/${id}`)).contentMd, 'after Redis outage');

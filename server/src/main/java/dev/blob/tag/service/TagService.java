@@ -20,5 +20,9 @@ public interface TagService {
 
     void replaceJournalTags(long journalId, List<Long> tagIds);
 
+    void replaceKnowledgeTags(long knowledgeId, List<Long> tagIds);
+
+    Map<Long, List<TagResponse>> findByKnowledgeIds(Collection<Long> knowledgeIds);
+
     Map<Long, List<TagResponse>> findByJournalIds(Collection<Long> journalIds);
 }

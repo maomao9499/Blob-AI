@@ -40,6 +40,9 @@ class TagServiceImplTest {
     @Mock
     private JournalCacheRepository cacheRepository;
 
+    @Mock
+    private dev.blob.tag.mapper.KnowledgeItemTagMapper knowledgeItemTagMapper;
+
     @InjectMocks
     private TagServiceImpl service;
 

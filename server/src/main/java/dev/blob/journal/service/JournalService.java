@@ -13,6 +13,9 @@ public interface JournalService {
 
     JournalDetailResponse get(long id);
 
+    /** Reads and locks the current MySQL source within the caller transaction; bypasses Redis. */
+    JournalDetailResponse getAuthoritative(long id);
+
     void update(long id, JournalUpdateRequest request);
 
     void delete(long id);

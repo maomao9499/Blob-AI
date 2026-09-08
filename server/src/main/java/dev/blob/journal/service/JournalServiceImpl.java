@@ -73,6 +73,18 @@ public class JournalServiceImpl implements JournalService {
 
     @Override
     @Transactional
+    public JournalDetailResponse getAuthoritative(long id) {
+        JournalEntryEntity entry = journalMapper.selectOne(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<JournalEntryEntity>query()
+                        .eq("id", id).last("FOR SHARE"));
+        if (entry == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, HttpStatus.NOT_FOUND, "日志不存在");
+        }
+        return toDetail(entry, tagService.findByJournalIds(List.of(id)).getOrDefault(id, List.of()));
+    }
+
+    @Override
+    @Transactional
     public void update(long id, JournalUpdateRequest request) {
         JournalEntryEntity entry = requireEntry(id);
         entry.setTitle(normalizeTitle(request.title()));

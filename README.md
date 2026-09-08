@@ -13,6 +13,14 @@ Blob 是一个面向个人使用的本地桌面知识日志应用，用来记录
 
 详细设计与实施步骤位于 `docs/superpowers/`。
 
+## M2 知识沉淀
+
+[M2：知识沉淀设计](docs/superpowers/specs/2026-09-08-blob-m2-knowledge-design.md) 对应功能已实现：独立知识与单层分类管理、日志手动整理为知识、来源快照、无向相关知识、日志与知识统一搜索。知识复用 Markdown、图片和全局标签；AI 与向量检索仍在 M4。实际验证结果见 [M2 验收记录](docs/testing/m2-acceptance.md)。
+
+在侧边栏进入“知识库”创建知识，或从已保存日志详情点击“整理为知识”。提炼先打开草稿，保存后才入库，允许同一日志整理出多篇知识；来源删除后保留知识和图片引用。在用分类和标签不能删除，需先调整条目引用。“搜索”页统一查找日志与知识，支持类型、标签和全局分页。
+
+M2 新增 Flyway V2，首次用新版本连接数据库时自动增量迁移，不改 V1。升级已有业务库前，先退出使用该库的 Blob，备份数据库及对应图片目录；默认桌面数据目录为 `~/Library/Application Support/Blob/blob-data/`，自定义用户目录按实际配置备份。可使用 `mysqldump -h 127.0.0.1 -u root -p --single-transaction --databases blob_dev > blob-dev-before-m2.sql` 隐藏输入密码，并将 `blob-data` 完整复制到备份目录。迁移失败保留日志排查，不执行 Flyway clean 或删库。
+
 ## 项目目录
 
 ```text
@@ -62,7 +70,7 @@ npm --prefix client ci
 npm --prefix client run dev
 ```
 
-浏览器访问 `http://127.0.0.1:5173`。Electron 开发模式需要先完成下文的资源准备，再保持 Vite 运行，另开终端执行 `npm --prefix client start`。桌面首次进入设置页，填写数据库与 Redis 配置；桌面会启动自己的随机端口 Java 子进程，不依赖手工启动的 8080 服务。
+浏览器访问 `http://127.0.0.1:5173`。浏览器开发模式需要手工启动上文的 8080 后端。Electron 开发模式需要先完成下文的资源准备，再执行 `npm --prefix client start`，该命令会自动启动 Vite 和 Electron。桌面首次进入设置页，填写数据库与 Redis 配置；桌面会启动自己的随机端口 Java 子进程，不依赖手工启动的 8080 服务。
 
 ## macOS 安装与打包
 
@@ -126,6 +134,8 @@ read -rs 'BLOB_SMOKE_DB_PASSWORD?MySQL test password: '
 export BLOB_SMOKE_DB_PASSWORD
 node client/scripts/smoke-package.mjs
 ```
+
+安装包冒烟现在同时验证日志、知识、来源、关联与图片的重启恢复。默认使用 `127.0.0.1:3306/blob_test`；临时隔离实例可用 `BLOB_SMOKE_DB_URL` 指定其他回环端口的 `blob_test`，不会覆盖已安装的应用。浏览器套件包含 M1 两条与 M2 三条流程。
 
 M1 不包含 AI 摘要、标签推荐、向量检索、学习计划和成长统计；这些保留到后续渐进开发阶段。
 
