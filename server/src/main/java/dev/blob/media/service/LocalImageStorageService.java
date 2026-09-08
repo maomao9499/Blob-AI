@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
@@ -93,7 +94,7 @@ public class LocalImageStorageService implements ImageStorageService {
             throw notFound();
         }
         Path path = safeResolve(storedName);
-        if (!Files.isRegularFile(path)) {
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             throw notFound();
         }
         String extension = storedName.substring(storedName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);

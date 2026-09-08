@@ -3,6 +3,8 @@ package dev.blob.tag.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import dev.blob.common.error.BusinessException;
 import dev.blob.common.error.ErrorCode;
+import dev.blob.common.config.AfterCommit;
+import dev.blob.journal.service.JournalCacheRepository;
 import dev.blob.tag.dto.TagCreateRequest;
 import dev.blob.tag.dto.TagResponse;
 import dev.blob.tag.dto.TagUpdateRequest;
@@ -11,6 +13,7 @@ import dev.blob.tag.entity.TagEntity;
 import dev.blob.tag.mapper.JournalEntryTagMapper;
 import dev.blob.tag.mapper.TagMapper;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +34,13 @@ public class TagServiceImpl implements TagService {
 
     private final TagMapper tagMapper;
     private final JournalEntryTagMapper journalEntryTagMapper;
+    private final JournalCacheRepository cacheRepository;
 
-    public TagServiceImpl(TagMapper tagMapper, JournalEntryTagMapper journalEntryTagMapper) {
+    public TagServiceImpl(TagMapper tagMapper, JournalEntryTagMapper journalEntryTagMapper,
+                          JournalCacheRepository cacheRepository) {
         this.tagMapper = tagMapper;
         this.journalEntryTagMapper = journalEntryTagMapper;
+        this.cacheRepository = cacheRepository;
     }
 
     @Override
@@ -74,6 +80,16 @@ public class TagServiceImpl implements TagService {
         } catch (DuplicateKeyException exception) {
             throw conflict("标签已存在");
         }
+        List<Long> journalIds = journalEntryTagMapper.selectList(
+                Wrappers.<JournalEntryTagEntity>query().eq("tag_id", id)
+        ).stream().map(JournalEntryTagEntity::getJournalEntryId).distinct().toList();
+        AfterCommit.run(() -> journalIds.forEach(journalId -> {
+            try {
+                cacheRepository.evict(journalId);
+            } catch (DataAccessException ignored) {
+                // Tag changes remain committed when the optional cache is unavailable.
+            }
+        }));
     }
 
     @Override

@@ -32,7 +32,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
+import { clearAccessToken } from '@/api/http';
 
 import { useApplicationStore } from '@/stores';
 
@@ -44,8 +45,8 @@ interface NavigationItem {
 
 const navigationItems: readonly NavigationItem[] = [
   { label: '日志', path: '/', isDisabled: false },
-  { label: '标签', path: '/', isDisabled: true },
-  { label: '成长', path: '/', isDisabled: true },
+  { label: '写日志', path: '/journals/new', isDisabled: false },
+  { label: '标签', path: '/tags', isDisabled: false },
   { label: '设置', path: '/settings', isDisabled: false },
 ];
 
@@ -69,6 +70,11 @@ const handleNavigation = (item: NavigationItem, event: MouseEvent): void => {
 onMounted(async (): Promise<void> => {
   await applicationStore.checkBackend();
 });
+const unsubscribe = window.blobDesktop?.onBackendExit?.(() => {
+  clearAccessToken();
+  void applicationStore.checkBackend();
+});
+onBeforeUnmount(() => unsubscribe?.());
 </script>
 
 <style scoped>

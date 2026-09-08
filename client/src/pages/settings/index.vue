@@ -9,6 +9,7 @@
       <el-button :loading="isLoading" @click="handleRefresh">重新检查</el-button>
     </header>
 
+    <desktop-setup @connected="handleRefresh" />
     <el-card v-if="errorMessage" shadow="never" class="settings-page__error">
       {{ errorMessage }}
     </el-card>
@@ -33,6 +34,7 @@
 <script setup lang="ts">
 import type { TagProps } from 'element-plus';
 import { computed, onMounted, ref } from 'vue';
+import DesktopSetup from './components/DesktopSetup.vue';
 
 import { systemApi } from '@/api/system';
 import type { DependencyStatus, DependencyStatuses } from '@/types/api.types';

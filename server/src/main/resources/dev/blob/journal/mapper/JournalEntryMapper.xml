@@ -27,6 +27,13 @@
                 AND (
                     je.title LIKE CONCAT('%', #{query.keyword}, '%')
                     OR je.content_md LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR EXISTS (
+                        SELECT 1
+                        FROM journal_entry_tag keyword_jet
+                        INNER JOIN tag keyword_tag ON keyword_tag.id = keyword_jet.tag_id
+                        WHERE keyword_jet.journal_entry_id = je.id
+                          AND keyword_tag.name LIKE CONCAT('%', #{query.keyword}, '%')
+                    )
                 )
             </if>
             <if test="query.entryType != null">

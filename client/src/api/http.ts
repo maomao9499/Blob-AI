@@ -5,11 +5,10 @@ import axios, {
 } from 'axios';
 
 import type { ApiResponse } from '@/types/api.types';
+import { pinia } from '@/stores/runtime';
+import { useDesktopStore } from '@/stores/modules/desktop';
 
-const API_BASE_URL = window.blobDesktop?.apiBaseUrl ?? '/api/v1';
 const SUCCESS_CODE = 'OK';
-
-let accessToken: string | null = null;
 
 export class ApiError extends Error {
   readonly code: string;
@@ -24,14 +23,16 @@ export class ApiError extends Error {
 }
 
 const axiosClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '/api/v1',
   timeout: 10_000,
 });
 
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-    if (accessToken) {
-      config.headers.set('Authorization', `Bearer ${accessToken}`);
+    const desktop = useDesktopStore(pinia);
+    config.baseURL = desktop.apiBaseUrl;
+    if (desktop.sessionToken) {
+      config.headers.set('X-Blob-Desktop-Token', desktop.sessionToken);
     }
     return config;
   },
@@ -59,16 +60,25 @@ const request = async <T>(config: AxiosRequestConfig): Promise<T> => {
     if (error instanceof ApiError) {
       throw error;
     }
+    if (axios.isAxiosError<ApiResponse<unknown>>(error) && error.response?.data?.code) {
+      const body = error.response.data;
+      throw new ApiError(body.code, body.message, body.traceId);
+    }
     throw new Error(getErrorMessage(error));
   }
 };
 
 export const setAccessToken = (token: string): void => {
-  accessToken = token;
+  const desktop = useDesktopStore(pinia);
+  desktop.configure(desktop.apiBaseUrl, token);
 };
 
 export const clearAccessToken = (): void => {
-  accessToken = null;
+  useDesktopStore(pinia).configure('/api/v1', null);
+};
+
+export const configureBackend = (baseUrl: string, token: string | null): void => {
+  useDesktopStore(pinia).configure(baseUrl, token);
 };
 
 export const http = {

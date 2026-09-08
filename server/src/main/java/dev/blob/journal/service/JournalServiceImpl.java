@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import dev.blob.common.config.AfterCommit;
 
 import java.util.List;
 import java.util.Map;
@@ -127,6 +128,10 @@ public class JournalServiceImpl implements JournalService {
     }
 
     private void safeCacheEvict(long id) {
+        AfterCommit.run(() -> evictCache(id));
+    }
+
+    private void evictCache(long id) {
         try {
             cacheRepository.evict(id);
         } catch (DataAccessException ignored) {
@@ -161,10 +166,20 @@ public class JournalServiceImpl implements JournalService {
                 entry.getEntryType().getValue(),
                 entry.getEntryDate(),
                 entry.getAiSummary(),
+                excerpt(entry.getContentMd()),
                 tags,
                 entry.getCreatedAt(),
                 entry.getUpdatedAt()
         );
+    }
+
+    private String excerpt(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String normalized = content.replaceAll("\\s+", " ").trim();
+        int length = normalized.codePointCount(0, normalized.length());
+        return length <= 200 ? normalized : normalized.substring(0, normalized.offsetByCodePoints(0, 200));
     }
 
     private JournalDetailResponse toDetail(JournalEntryEntity entry, List<TagResponse> tags) {

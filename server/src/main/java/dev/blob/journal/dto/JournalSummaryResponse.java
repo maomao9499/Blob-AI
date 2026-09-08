@@ -12,6 +12,7 @@ public record JournalSummaryResponse(
         String entryType,
         LocalDate entryDate,
         String aiSummary,
+        String excerpt,
         List<TagResponse> tags,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

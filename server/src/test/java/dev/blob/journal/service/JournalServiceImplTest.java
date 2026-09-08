@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -121,5 +122,33 @@ class JournalServiceImplTest {
         assertThatThrownBy(() -> new JournalQuery(null, null, null, null, null, 0, 20))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("page");
+    }
+
+    @Test
+    void deleteEvictsOnlyAfterSuccessfulCommit() {
+        when(journalMapper.selectById(42L)).thenReturn(JournalEntryEntity.create(
+                "标题", "正文", EntryType.LIFE, LocalDate.of(2026, 9, 7)));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.delete(42L);
+            verify(cacheRepository, never()).evict(42L);
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+            verify(cacheRepository).evict(42L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void searchIncludesBoundedUnicodeExcerpt() {
+        var entry = JournalEntryEntity.create("标题", "  正文\n\n" + "😀".repeat(220),
+                EntryType.LIFE, LocalDate.of(2026, 9, 7));
+        entry.setId(42L);
+        when(journalMapper.countSearch(any())).thenReturn(1L);
+        when(journalMapper.search(any(), anyLong(), anyInt())).thenReturn(List.of(entry));
+
+        var page = service.search(new JournalQuery(null, null, null, null, null, 1, 20));
+
+        assertThat(page.items().getFirst()).extracting("excerpt").isEqualTo("正文 " + "😀".repeat(197));
     }
 }

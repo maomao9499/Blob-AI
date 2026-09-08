@@ -90,6 +90,19 @@ class LocalImageStorageServiceTest {
         assertThat(first.url()).isNotEqualTo(second.url());
     }
 
+    @Test
+    void refusesSymlinkOutsideUploadRoot() throws Exception {
+        Path outside = Files.createTempFile("blob-outside-", ".png");
+        try {
+            String name = "00000000-0000-4000-8000-000000000000.png";
+            Files.createSymbolicLink(uploadDir.resolve(name), outside);
+            assertThatThrownBy(() -> service().load(name))
+                    .isInstanceOf(BusinessException.class).hasMessageContaining("不存在");
+        } finally {
+            Files.deleteIfExists(outside);
+        }
+    }
+
     private LocalImageStorageService service() {
         return new LocalImageStorageService(uploadDir.toString(), mediaAssetMapper, new ImageTypeDetector());
     }

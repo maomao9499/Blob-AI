@@ -1,5 +1,3 @@
-import { createPinia } from 'pinia';
-
-export const pinia = createPinia();
+export { pinia } from './runtime';
 
 export { useApplicationStore } from '@/stores/modules/application';

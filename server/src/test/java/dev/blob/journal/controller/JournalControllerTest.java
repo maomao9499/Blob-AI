@@ -70,9 +70,19 @@ class JournalControllerTest {
     }
 
     @Test
+    void malformedBodyAndQueryReturnValidationErrors() throws Exception {
+        mockMvc.perform(post("/api/v1/journals").contentType("application/json").content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/v1/journals").param("startDate", "not-a-date"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void listsJournalsWithPaginationAndGlobalSearchUsesSameContract() throws Exception {
         JournalSummaryResponse summary = new JournalSummaryResponse(
-                2L, "Redis", "LEARNING", LocalDate.of(2026, 9, 7), null, List.of(),
+                2L, "Redis", "LEARNING", LocalDate.of(2026, 9, 7), null, "缓存正文", List.of(),
                 LocalDateTime.of(2026, 9, 7, 9, 0), LocalDateTime.of(2026, 9, 7, 9, 0)
         );
         when(journalService.search(any(JournalQuery.class)))
@@ -81,6 +91,7 @@ class JournalControllerTest {
         mockMvc.perform(get("/api/v1/journals").param("keyword", "缓存"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].title").value("Redis"))
+                .andExpect(jsonPath("$.data.items[0].excerpt").value("缓存正文"))
                 .andExpect(jsonPath("$.data.total").value(1));
 
         mockMvc.perform(get("/api/v1/search").param("keyword", "缓存"))

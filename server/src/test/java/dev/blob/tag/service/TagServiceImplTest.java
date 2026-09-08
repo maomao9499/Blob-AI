@@ -4,6 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import dev.blob.common.error.BusinessException;
 import dev.blob.common.error.ErrorCode;
 import dev.blob.tag.dto.TagCreateRequest;
+import dev.blob.tag.dto.TagUpdateRequest;
+import dev.blob.journal.service.JournalCacheRepository;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import dev.blob.tag.entity.JournalEntryTagEntity;
 import dev.blob.tag.entity.TagEntity;
 import dev.blob.tag.mapper.JournalEntryTagMapper;
@@ -33,6 +36,9 @@ class TagServiceImplTest {
 
     @Mock
     private JournalEntryTagMapper journalEntryTagMapper;
+
+    @Mock
+    private JournalCacheRepository cacheRepository;
 
     @InjectMocks
     private TagServiceImpl service;
@@ -73,5 +79,24 @@ class TagServiceImplTest {
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
 
         verify(journalEntryTagMapper, never()).delete(any(Wrapper.class));
+    }
+
+    @Test
+    void renamingTagEvictsAssociatedJournalDetailsAfterCommit() {
+        TagEntity tag = new TagEntity();
+        tag.setId(3L);
+        tag.setName("old");
+        when(tagMapper.selectById(3L)).thenReturn(tag);
+        when(journalEntryTagMapper.selectList(any(Wrapper.class)))
+                .thenReturn(List.of(new JournalEntryTagEntity(42L, 3L)));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.update(3L, new TagUpdateRequest("new", "#ff0000"));
+            verify(cacheRepository, never()).evict(42L);
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+            verify(cacheRepository).evict(42L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

@@ -60,6 +60,27 @@ class JournalSearchMapperTest {
                 .containsExactly(newer.getId(), older.getId());
     }
 
+    @Test
+    void keywordMatchesTagNamesWithoutDuplicatingJournals() {
+        var journal = insertJournal("无关键字标题", "普通正文", EntryType.LEARNING, LocalDate.of(2026, 9, 7));
+        var unrelated = insertJournal("无关记录", "普通正文", EntryType.LIFE, LocalDate.of(2026, 9, 7));
+        for (String name : List.of("tag-search-unique-one", "tag-search-unique-two")) {
+            TagEntity tag = new TagEntity();
+            tag.setName(name);
+            tagMapper.insert(tag);
+            journalEntryTagMapper.insert(List.of(new JournalEntryTagEntity(journal.getId(), tag.getId()),
+                    new JournalEntryTagEntity(unrelated.getId(), tag.getId())));
+        }
+        var query = new JournalQuery("tag-search-unique", "LEARNING", null,
+                LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 7), 1, 20);
+
+        assertThat(journalMapper.countSearch(query)).isEqualTo(1L);
+        assertThat(journalMapper.search(query, 0, 20)).extracting(JournalEntryEntity::getId)
+                .containsExactly(journal.getId());
+        var injection = new JournalQuery("' OR 1=1 --", null, null, null, null, 1, 20);
+        assertThat(journalMapper.countSearch(injection)).isZero();
+    }
+
     private JournalEntryEntity insertJournal(
             String title,
             String content,

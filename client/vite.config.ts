@@ -16,10 +16,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
+      '/api': process.env.BLOB_DEV_API_TARGET ?? 'http://127.0.0.1:8080',
     },
   },
   test: {
+    include: ['tests/**/*.test.ts'],
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
   },

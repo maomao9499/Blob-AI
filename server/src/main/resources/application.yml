@@ -14,6 +14,8 @@ spring:
       host: ${BLOB_REDIS_HOST:127.0.0.1}
       port: ${BLOB_REDIS_PORT:6379}
       password: ${BLOB_REDIS_PASSWORD:}
+      connect-timeout: 500ms
+      timeout: 500ms
   servlet:
     multipart:
       max-file-size: 10MB
@@ -36,3 +38,5 @@ management:
 blob:
   upload-dir: ${BLOB_UPLOAD_DIR:../storage/images}
   desktop-token: ${BLOB_DESKTOP_TOKEN:}
+  dev-origin: ${BLOB_DEV_ORIGIN:http://127.0.0.1:5173}
+  allow-dev-origin: ${BLOB_ALLOW_DEV_ORIGIN:false}
